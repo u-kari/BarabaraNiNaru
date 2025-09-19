@@ -2,82 +2,93 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <title>マスク＋カメラ映像ミックス</title>
+  <title>カメラ＋マスク映像ミックス</title>
   <style>
-    body {
+    body, html {
       margin: 0;
+      padding: 0;
       background: black;
+      overflow: hidden;
+      height: 100%;
       display: flex;
-      justify-content: center;
       align-items: center;
-      height: 100vh;
+      justify-content: center;
     }
-    canvas {
-      max-width: 100%;
-      max-height: 100%;
-      background: black;
-    }
-    #startButton {
+    #startBtn {
       position: absolute;
       z-index: 10;
-      padding: 20px 40px;
-      font-size: 18px;
+      padding: 1em 2em;
+      font-size: 1.2em;
+      background: white;
+      border: none;
+      border-radius: 8px;
       cursor: pointer;
+    }
+    canvas {
+      width: 100vw;
+      height: 100vh;
+      object-fit: cover;
     }
   </style>
 </head>
 <body>
-  <button id="startButton">▶ スタート</button>
+  <button id="startBtn">▶ スタート</button>
   <canvas id="canvas"></canvas>
 
-  <!-- 用意した映像とマスク -->
-  <video id="video" src="your_video.mp4" playsinline muted></video>
-  <video id="mask" src="your_mask.mp4" playsinline muted></video>
-  <video id="camera" autoplay playsinline muted></video>
+  <!-- 用意した動画とマスク動画 -->
+  <video id="video" src="video.mp4" playsinline muted></video>
+  <video id="mask" src="mask.mp4" playsinline muted></video>
+  <video id="camera" playsinline muted></video>
 
   <script>
-    const startButton = document.getElementById('startButton');
-    const canvas = document.getElementById('canvas');
-    const ctx = canvas.getContext('2d');
+    const startBtn = document.getElementById("startBtn");
+    const canvas = document.getElementById("canvas");
+    const ctx = canvas.getContext("2d");
 
-    const video = document.getElementById('video');
-    const mask = document.getElementById('mask');
-    const camera = document.getElementById('camera');
+    const video = document.getElementById("video");
+    const mask = document.getElementById("mask");
+    const camera = document.getElementById("camera");
 
-    async function initCamera() {
+    async function init() {
+      // カメラ起動
       const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
       camera.srcObject = stream;
+
+      // 自動再生できるように設定
+      await Promise.all([video.play(), mask.play(), camera.play()]);
+
+      function render() {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+
+        // 1. カメラ映像を上下反転して描画
+        ctx.save();
+        ctx.translate(0, canvas.height);
+        ctx.scale(1, -1);
+        ctx.drawImage(camera, 0, 0, canvas.width, canvas.height);
+        ctx.restore();
+
+        // 2. マスクをアルファとして利用
+        ctx.save();
+        ctx.globalCompositeOperation = "destination-in";
+        ctx.drawImage(mask, 0, 0, canvas.width, canvas.height);
+        ctx.restore();
+
+        // 3. 背景動画を重ねる
+        ctx.save();
+        ctx.globalCompositeOperation = "destination-over";
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        ctx.restore();
+
+        requestAnimationFrame(render);
+      }
+
+      render();
     }
 
-    function draw() {
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-      // --- カメラを上下反転補正して描画 ---
-      ctx.save();
-      ctx.scale(1, -1); // 上下反転
-      ctx.drawImage(camera, 0, -canvas.height, canvas.width, canvas.height);
-      ctx.restore();
-
-      // --- マスク適用して映像を描画 ---
-      ctx.globalCompositeOperation = 'destination-over';
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-      ctx.globalCompositeOperation = 'destination-in';
-      ctx.drawImage(mask, 0, 0, canvas.width, canvas.height);
-
-      ctx.globalCompositeOperation = 'source-over';
-      requestAnimationFrame(draw);
-    }
-
-    startButton.addEventListener('click', async () => {
-      startButton.style.display = 'none';
-      await initCamera();
-      await video.play();
-      await mask.play();
-      draw();
+    startBtn.addEventListener("click", () => {
+      startBtn.style.display = "none";
+      init();
     });
   </script>
 </body>
