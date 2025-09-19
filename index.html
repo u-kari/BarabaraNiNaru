@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <title>マスク映像 + カメラ映像</title>
+  <title>マスク＋カメラ映像ミックス</title>
   <style>
     body {
       margin: 0;
@@ -11,20 +11,18 @@
       justify-content: center;
       align-items: center;
       height: 100vh;
-      overflow: hidden;
+    }
+    canvas {
+      max-width: 100%;
+      max-height: 100%;
+      background: black;
     }
     #startButton {
       position: absolute;
       z-index: 10;
-      padding: 1em 2em;
-      font-size: 1.2em;
-    }
-    canvas {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-      /* 垂直方向に反転 */
-      transform: scale(1, 1,-1);
+      padding: 20px 40px;
+      font-size: 18px;
+      cursor: pointer;
     }
   </style>
 </head>
@@ -32,66 +30,54 @@
   <button id="startButton">▶ スタート</button>
   <canvas id="canvas"></canvas>
 
-  <!-- あらかじめ用意した動画 -->
-  <video id="bgVideo" src="your-video.mp4" playsinline muted loop></video>
-  <video id="maskVideo" src="your-mask.mp4" playsinline muted loop></video>
-  <video id="camVideo" playsinline muted></video>
+  <!-- 用意した映像とマスク -->
+  <video id="video" src="your_video.mp4" playsinline muted></video>
+  <video id="mask" src="your_mask.mp4" playsinline muted></video>
+  <video id="camera" autoplay playsinline muted></video>
 
   <script>
-    const startButton = document.getElementById("startButton");
-    const canvas = document.getElementById("canvas");
-    const ctx = canvas.getContext("2d");
-    const bgVideo = document.getElementById("bgVideo");
-    const maskVideo = document.getElementById("maskVideo");
-    const camVideo = document.getElementById("camVideo");
+    const startButton = document.getElementById('startButton');
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
 
-    async function init() {
-      // カメラ映像を取得
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
-        camVideo.srcObject = stream;
-        await camVideo.play();
-      } catch (err) {
-        alert("カメラにアクセスできません: " + err);
-        return;
-      }
+    const video = document.getElementById('video');
+    const mask = document.getElementById('mask');
+    const camera = document.getElementById('camera');
 
-      // 背景とマスク動画の再生
-      await bgVideo.play();
-      await maskVideo.play();
-
-      // canvas サイズ設定
-      function resize() {
-        canvas.width = window.innerWidth;
-        canvas.height = window.innerHeight;
-      }
-      resize();
-      window.addEventListener("resize", resize);
-
-      // 描画ループ
-      function draw() {
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-        // マスク描画
-        ctx.drawImage(maskVideo, 0, 0, canvas.width, canvas.height);
-
-        // マスク適用
-        ctx.globalCompositeOperation = "source-in";
-        ctx.drawImage(bgVideo, 0, 0, canvas.width, canvas.height);
-
-        // カメラを下地に合成
-        ctx.globalCompositeOperation = "destination-over";
-        ctx.drawImage(camVideo, 0, 0, canvas.width, canvas.height);
-
-        ctx.globalCompositeOperation = "source-over";
-        requestAnimationFrame(draw);
-      }
-      draw();
+    async function initCamera() {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+      camera.srcObject = stream;
     }
 
-    startButton.addEventListener("click", () => {
-      startButton.style.display = "none";
-      init();
+    function draw() {
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      // --- カメラを上下反転補正して描画 ---
+      ctx.save();
+      ctx.scale(1, -1); // 上下反転
+      ctx.drawImage(camera, 0, -canvas.height, canvas.width, canvas.height);
+      ctx.restore();
+
+      // --- マスク適用して映像を描画 ---
+      ctx.globalCompositeOperation = 'destination-over';
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+      ctx.globalCompositeOperation = 'destination-in';
+      ctx.drawImage(mask, 0, 0, canvas.width, canvas.height);
+
+      ctx.globalCompositeOperation = 'source-over';
+      requestAnimationFrame(draw);
+    }
+
+    startButton.addEventListener('click', async () => {
+      startButton.style.display = 'none';
+      await initCamera();
+      await video.play();
+      await mask.play();
+      draw();
     });
   </script>
 </body>
